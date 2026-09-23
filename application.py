@@ -4,399 +4,545 @@ import uuid
 
 application = Flask(__name__)
 
-PRODUCTS = [
+JOURNALS = [
     {
-        "id": "ivory",
-        "name": "The Ivory Journal",
-        "subtitle": "Quiet luxury, made for slow mornings.",
-        "price": 6900,
-        "image": "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1200&q=88"
-    },
-    {
-        "id": "sage",
-        "name": "The Sage Journal",
-        "subtitle": "A soft green companion for thoughtful days.",
-        "price": 7200,
+        "id": "pearl",
+        "name": "Pearl No. 01",
+        "tone": "Warm Ivory",
+        "price": 6800,
         "image": "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1200&q=88"
     },
     {
-        "id": "rose",
-        "name": "The Blush Journal",
-        "subtitle": "Warm, delicate, and designed to be kept.",
+        "id": "mauve",
+        "name": "Mauve No. 02",
+        "tone": "Dusty Rose",
         "price": 7200,
-        "image": "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=88"
+        "image": "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=1200&q=88"
+    },
+    {
+        "id": "sage",
+        "name": "Sage No. 03",
+        "tone": "Muted Green",
+        "price": 7200,
+        "image": "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?auto=format&fit=crop&w=1200&q=88"
     }
 ]
 
-HTML_TEMPLATE = r"""
+PAGE = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ilume — Journals for a Beautiful Life</title>
-    <meta name="description" content="Ilume creates timeless journals designed for reflection, intention and beautifully lived days.">
+    <title>ilume — Objects for Thought</title>
+    <meta name="description" content="Ilume journals — refined objects for reflection, intention and quiet ritual.">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              cream: '#F7F3EC',
-              sand: '#E8DFD2',
-              taupe: '#B7A896',
-              ink: '#2E2A26',
-              sage: '#A8AD9D',
-              rose: '#DCC8C1'
-            },
-            fontFamily: {
-              serif: ['Cormorant Garamond', 'serif'],
-              sans: ['Inter', 'sans-serif']
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        porcelain: '#F6F1EA',
+                        paper: '#FBF8F3',
+                        plum: '#4D3C46',
+                        mist: '#CFC6CD',
+                        olive: '#A5A89B',
+                        blush: '#D8C4C0',
+                        almond: '#D9CCBC',
+                        charcoal: '#282522'
+                    },
+                    fontFamily: {
+                        display: ['DM Serif Display', 'serif'],
+                        body: ['Manrope', 'sans-serif']
+                    }
+                }
             }
-          }
         }
-      }
     </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
 
     <style>
         html { scroll-behavior: smooth; }
-        body { background: #F7F3EC; color: #2E2A26; }
-        .glass {
-            background: rgba(247,243,236,.78);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+        body { background:#F6F1EA; color:#282522; }
+
+        .noise {
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(255,255,255,.7), transparent 18%),
+                radial-gradient(circle at 80% 0%, rgba(207,198,205,.28), transparent 22%),
+                radial-gradient(circle at 60% 70%, rgba(216,196,192,.22), transparent 25%);
         }
-        .soft-shadow { box-shadow: 0 30px 80px rgba(67, 53, 39, .10); }
-        .lift { transition: transform .35s ease, box-shadow .35s ease; }
-        .lift:hover { transform: translateY(-6px); box-shadow: 0 24px 60px rgba(67, 53, 39, .13); }
-        .reveal { animation: reveal .9s ease both; }
-        @keyframes reveal {
-            from { opacity: 0; transform: translateY(16px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .hairline { border-color: rgba(40,37,34,.12); }
+
+        .card-glow {
+            box-shadow: 0 25px 70px rgba(65,52,58,.10);
         }
-        .line { width: 42px; height: 1px; background: #B7A896; }
-        input, textarea, select { outline: none; }
-        ::selection { background: #DCC8C1; color: #2E2A26; }
+
+        .soft-float {
+            animation: float 7s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%,100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .marquee {
+            overflow:hidden;
+            white-space:nowrap;
+        }
+
+        .marquee-track {
+            display:inline-block;
+            animation: marquee 20s linear infinite;
+        }
+
+        @keyframes marquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+        }
+
+        .pill {
+            transition: all .25s ease;
+        }
+
+        .pill:hover {
+            background:#282522;
+            color:#F6F1EA;
+        }
+
+        .product img {
+            transition: transform .7s cubic-bezier(.2,.7,.2,1);
+        }
+
+        .product:hover img {
+            transform: scale(1.035);
+        }
+
+        input, textarea, select {
+            outline:none;
+        }
+
+        ::selection {
+            background:#D8C4C0;
+            color:#282522;
+        }
     </style>
 </head>
 
-<body class="font-sans antialiased">
-    <header class="fixed top-0 inset-x-0 z-50 glass border-b border-black/5">
-        <div class="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
-            <a href="#" class="font-serif text-3xl tracking-[0.18em] lowercase">ilume</a>
+<body class="font-body antialiased noise">
 
-            <nav class="hidden md:flex items-center gap-9 text-[13px] tracking-[0.16em] uppercase text-ink/70">
-                <a href="#collection" class="hover:text-ink transition">Collection</a>
-                <a href="#story" class="hover:text-ink transition">Our Story</a>
-                <a href="#ritual" class="hover:text-ink transition">The Ritual</a>
+    <!-- TOP NOTE -->
+    <div class="bg-charcoal text-porcelain text-[10px] sm:text-xs tracking-[0.22em] uppercase text-center py-2.5">
+        Complimentary islandwide delivery on orders over LKR 10,000
+    </div>
+
+    <!-- NAV -->
+    <header class="sticky top-0 z-40 bg-porcelain/90 backdrop-blur-xl border-b hairline">
+        <div class="max-w-[1440px] mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
+            <a href="#" class="font-display text-[34px] tracking-tight lowercase">ilume</a>
+
+            <nav class="hidden md:flex items-center gap-10 text-xs uppercase tracking-[0.18em] text-charcoal/60">
+                <a href="#collection" class="hover:text-charcoal transition">Shop</a>
+                <a href="#atelier" class="hover:text-charcoal transition">Atelier</a>
+                <a href="#details" class="hover:text-charcoal transition">Details</a>
             </nav>
 
-            <button onclick="openOrder()" class="rounded-full border border-ink/20 px-5 py-2.5 text-xs tracking-[0.16em] uppercase hover:bg-ink hover:text-cream transition">
-                Place Order
+            <button onclick="openOrder()" class="pill border border-charcoal/20 rounded-full px-5 py-2.5 text-[11px] uppercase tracking-[0.18em]">
+                Order Journal
             </button>
         </div>
     </header>
 
     <main>
+
         <!-- HERO -->
-        <section class="min-h-screen pt-20 grid lg:grid-cols-2">
-            <div class="flex items-center px-7 sm:px-12 lg:px-20 xl:px-28 py-16">
-                <div class="max-w-xl reveal">
-                    <div class="flex items-center gap-4 mb-8">
-                        <div class="line"></div>
-                        <span class="text-[11px] tracking-[0.28em] uppercase text-ink/55">A slower way to remember</span>
+        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 pt-10 lg:pt-16 pb-24">
+            <div class="grid lg:grid-cols-[1.05fr_.95fr] gap-8 lg:gap-14 items-stretch">
+
+                <!-- editorial panel -->
+                <div class="min-h-[700px] bg-paper rounded-[36px] p-8 sm:p-12 lg:p-16 flex flex-col justify-between border hairline">
+                    <div class="flex items-center justify-between text-[10px] sm:text-xs tracking-[0.2em] uppercase text-charcoal/45">
+                        <span>Edition 01 — 2026</span>
+                        <span>Objects for Thought</span>
                     </div>
 
-                    <h1 class="font-serif text-6xl sm:text-7xl xl:text-[92px] leading-[0.92] font-medium tracking-[-0.03em]">
-                        Make space<br>for what <em class="font-normal text-taupe">matters.</em>
-                    </h1>
-
-                    <p class="mt-8 text-base sm:text-lg leading-8 text-ink/65 max-w-lg font-light">
-                        Thoughtfully crafted journals for ideas, intentions, quiet reflections
-                        and the beautiful details you never want to forget.
-                    </p>
-
-                    <div class="mt-10 flex flex-wrap gap-4">
-                        <a href="#collection" class="rounded-full bg-ink text-cream px-7 py-4 text-xs tracking-[0.18em] uppercase hover:opacity-90 transition">
-                            Explore the collection
-                        </a>
-                        <a href="#story" class="rounded-full border border-ink/15 px-7 py-4 text-xs tracking-[0.18em] uppercase hover:bg-white/50 transition">
-                            Discover Ilume
-                        </a>
-                    </div>
-
-                    <div class="mt-14 flex items-center gap-8 text-xs text-ink/55">
-                        <div><span class="block font-serif text-2xl text-ink">192</span>cream pages</div>
-                        <div class="h-9 w-px bg-ink/10"></div>
-                        <div><span class="block font-serif text-2xl text-ink">120gsm</span>premium paper</div>
-                        <div class="h-9 w-px bg-ink/10"></div>
-                        <div><span class="block font-serif text-2xl text-ink">A5</span>lay-flat binding</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="relative min-h-[620px] lg:min-h-0 overflow-hidden">
-                <img
-                    src="https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=1600&q=90"
-                    alt="Elegant journal and lifestyle setting"
-                    class="absolute inset-0 w-full h-full object-cover"
-                >
-                <div class="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent"></div>
-                <div class="absolute left-8 bottom-8 bg-cream/90 backdrop-blur-md rounded-2xl px-5 py-4 soft-shadow max-w-[260px]">
-                    <div class="font-serif text-xl">The art of writing by hand.</div>
-                    <div class="text-xs text-ink/60 mt-1 leading-5">Designed to feel beautiful before the first word is written.</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- COLLECTION -->
-        <section id="collection" class="px-6 sm:px-10 lg:px-16 py-28 max-w-7xl mx-auto">
-            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-14">
-                <div>
-                    <span class="text-[11px] tracking-[0.28em] uppercase text-ink/50">The first collection</span>
-                    <h2 class="font-serif text-5xl sm:text-6xl mt-3">Journals to keep close.</h2>
-                </div>
-                <p class="max-w-sm text-sm leading-7 text-ink/55">
-                    Linen-inspired covers, understated palettes and paper chosen for the pleasure of writing.
-                </p>
-            </div>
-
-            <div class="grid md:grid-cols-3 gap-7">
-                {% for product in products %}
-                <article class="group lift bg-[#FBF8F3] rounded-[28px] overflow-hidden border border-black/5">
-                    <div class="aspect-[4/5] overflow-hidden">
-                        <img src="{{ product.image }}" alt="{{ product.name }}" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700">
-                    </div>
-                    <div class="p-6">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <h3 class="font-serif text-3xl">{{ product.name }}</h3>
-                                <p class="mt-2 text-sm leading-6 text-ink/55">{{ product.subtitle }}</p>
-                            </div>
-                            <div class="text-sm whitespace-nowrap">LKR {{ "{:,}".format(product.price) }}</div>
+                    <div class="max-w-3xl my-14">
+                        <div class="text-xs uppercase tracking-[0.22em] text-charcoal/40 mb-7">
+                            For quiet minds & beautiful routines
                         </div>
-                        <button onclick="openOrder('{{ product.id }}')" class="mt-6 w-full rounded-full border border-ink/15 px-5 py-3 text-xs tracking-[0.16em] uppercase hover:bg-ink hover:text-cream transition">
-                            Order this journal
-                        </button>
-                    </div>
-                </article>
-                {% endfor %}
-            </div>
-        </section>
 
-        <!-- STORY -->
-        <section id="story" class="bg-[#EEE7DD] py-28 px-6 sm:px-10">
-            <div class="max-w-7xl mx-auto grid lg:grid-cols-2 gap-14 lg:gap-24 items-center">
-                <div class="relative">
+                        <h1 class="font-display text-[68px] sm:text-[88px] lg:text-[110px] leading-[.84] tracking-[-0.04em]">
+                            A softer<br>
+                            way to
+                            <span class="italic text-plum">begin.</span>
+                        </h1>
+
+                        <p class="mt-9 max-w-xl text-base sm:text-lg leading-8 text-charcoal/60 font-light">
+                            Ilume journals are designed like small interior objects:
+                            tactile, poised, timeless and made to live beautifully beside you.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8">
+                        <a href="#collection" class="inline-flex items-center justify-center rounded-full bg-charcoal text-porcelain px-7 py-4 text-[11px] uppercase tracking-[0.18em]">
+                            Discover Edition 01
+                        </a>
+
+                        <div class="text-xs text-charcoal/45">
+                            Lay-flat binding · 120gsm paper · Linen-touch covers
+                        </div>
+                    </div>
+                </div>
+
+                <!-- art image -->
+                <div class="relative min-h-[700px] rounded-[36px] overflow-hidden card-glow">
                     <img
-                        src="https://images.unsplash.com/photo-1456324504439-367cee3b3c32?auto=format&fit=crop&w=1400&q=88"
-                        alt="Writing in a journal"
-                        class="rounded-[36px] w-full aspect-[5/6] object-cover soft-shadow"
+                        src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1500&q=90"
+                        alt="Minimal luxury desk with journal"
+                        class="absolute inset-0 w-full h-full object-cover"
                     >
-                    <div class="absolute -bottom-8 -right-2 sm:right-10 bg-cream p-7 rounded-3xl max-w-xs soft-shadow">
-                        <p class="font-serif text-2xl leading-8">“A journal should feel like an invitation, never an obligation.”</p>
-                    </div>
-                </div>
+                    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-charcoal/30"></div>
 
-                <div class="lg:pr-10">
-                    <span class="text-[11px] tracking-[0.28em] uppercase text-ink/50">The Ilume philosophy</span>
-                    <h2 class="font-serif text-5xl sm:text-6xl leading-[1.02] mt-4">
-                        Beautiful things make everyday rituals feel sacred.
-                    </h2>
-                    <p class="mt-8 text-base leading-8 text-ink/60 font-light">
-                        Ilume was imagined for people who still believe in paper, pause and presence.
-                        Our journals are intentionally simple: soft colors, tactile materials, generous pages
-                        and no unnecessary noise.
-                    </p>
-                    <p class="mt-5 text-base leading-8 text-ink/60 font-light">
-                        Keep plans, dreams, sketches, gratitude lists, private thoughts or nothing at all.
-                        The blank page is yours.
-                    </p>
+                    <div class="absolute left-6 right-6 bottom-6 bg-porcelain/88 backdrop-blur-xl rounded-[26px] p-6 sm:p-7">
+                        <div class="flex items-end justify-between gap-6">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-[0.22em] text-charcoal/45">Studio note</div>
+                                <div class="font-display text-3xl sm:text-4xl mt-2">Made to sit beautifully in your day.</div>
+                            </div>
+                            <div class="hidden sm:block text-xs text-charcoal/50 max-w-[170px] leading-6">
+                                Minimal forms. Gentle texture. A calm place for everything in your head.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- RITUAL -->
-        <section id="ritual" class="py-28 px-6 sm:px-10">
-            <div class="max-w-6xl mx-auto text-center">
-                <span class="text-[11px] tracking-[0.28em] uppercase text-ink/50">Your daily ritual</span>
-                <h2 class="font-serif text-5xl sm:text-6xl mt-4">Light a moment. Write it down.</h2>
-                <p class="max-w-2xl mx-auto mt-6 text-ink/55 leading-8">
-                    Five quiet minutes in the morning or one final page before bed.
-                    Ilume is made for the ritual you create for yourself.
-                </p>
+        <!-- MARQUEE -->
+        <section class="border-y hairline py-5 bg-porcelain/60">
+            <div class="marquee text-[11px] tracking-[0.28em] uppercase text-charcoal/45">
+                <div class="marquee-track">
+                    Ilume&nbsp;&nbsp;·&nbsp;&nbsp;Write Slowly&nbsp;&nbsp;·&nbsp;&nbsp;Keep Beautifully&nbsp;&nbsp;·&nbsp;&nbsp;Reflect Often&nbsp;&nbsp;·&nbsp;&nbsp;
+                    Ilume&nbsp;&nbsp;·&nbsp;&nbsp;Write Slowly&nbsp;&nbsp;·&nbsp;&nbsp;Keep Beautifully&nbsp;&nbsp;·&nbsp;&nbsp;Reflect Often&nbsp;&nbsp;·&nbsp;&nbsp;
+                </div>
+            </div>
+        </section>
 
-                <div class="grid sm:grid-cols-3 gap-8 mt-16 text-left">
-                    <div class="border-t border-ink/15 pt-6">
-                        <div class="font-serif text-4xl text-taupe">01</div>
-                        <h3 class="font-serif text-2xl mt-4">Pause</h3>
-                        <p class="mt-2 text-sm leading-6 text-ink/55">Step away from the screen and create a little room to think.</p>
+        <!-- PRODUCTS -->
+        <section id="collection" class="max-w-[1440px] mx-auto px-6 lg:px-10 py-28">
+            <div class="grid lg:grid-cols-[.65fr_1.35fr] gap-14">
+                <div class="lg:sticky lg:top-28 lg:self-start">
+                    <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">Edition 01</div>
+                    <h2 class="font-display text-5xl sm:text-6xl mt-4 leading-[.95]">
+                        Three tones.<br>One quiet ritual.
+                    </h2>
+                    <p class="mt-6 max-w-sm leading-7 text-charcoal/55 text-sm">
+                        A restrained palette inspired by calm interiors, early light,
+                        linen, dried petals and quiet rooms.
+                    </p>
+                </div>
+
+                <div class="space-y-8">
+                    {% for journal in journals %}
+                    <article class="product bg-paper rounded-[30px] overflow-hidden border hairline grid md:grid-cols-[1.1fr_.9fr] min-h-[430px]">
+                        <div class="overflow-hidden">
+                            <img src="{{ journal.image }}" alt="{{ journal.name }}" class="w-full h-full object-cover min-h-[360px]">
+                        </div>
+
+                        <div class="p-8 sm:p-10 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-charcoal/40">
+                                    <span>{{ journal.tone }}</span>
+                                    <span>Edition 01</span>
+                                </div>
+
+                                <h3 class="font-display text-4xl sm:text-5xl mt-7">{{ journal.name }}</h3>
+
+                                <p class="mt-5 text-sm leading-7 text-charcoal/55">
+                                    192 softly toned pages, subtle ruled layout,
+                                    ribbon marker and understated foil detail.
+                                </p>
+                            </div>
+
+                            <div class="mt-10 flex items-center justify-between gap-4">
+                                <div>
+                                    <div class="text-[10px] uppercase tracking-[0.18em] text-charcoal/40">Price</div>
+                                    <div class="font-display text-2xl mt-1">LKR {{ "{:,}".format(journal.price) }}</div>
+                                </div>
+
+                                <button onclick="openOrder('{{ journal.id }}')" class="pill rounded-full border border-charcoal/20 px-6 py-3 text-[11px] uppercase tracking-[0.18em]">
+                                    Select
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <!-- ATELIER -->
+        <section id="atelier" class="bg-plum text-porcelain py-28">
+            <div class="max-w-[1280px] mx-auto px-6 lg:px-10 grid lg:grid-cols-2 gap-16 items-center">
+                <div class="relative">
+                    <div class="absolute -top-5 -left-5 w-28 h-28 border border-white/15 rounded-full"></div>
+                    <img
+                        src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=88"
+                        alt="Handwriting in a journal"
+                        class="relative rounded-[34px] w-full aspect-[4/5] object-cover"
+                    >
+                </div>
+
+                <div class="lg:pl-8">
+                    <div class="text-[10px] uppercase tracking-[0.24em] text-white/45">The atelier</div>
+                    <h2 class="font-display text-5xl sm:text-6xl mt-5 leading-[.98]">
+                        Designed for people who notice small things.
+                    </h2>
+
+                    <p class="mt-8 leading-8 text-white/65 font-light">
+                        The weight of a page. The way a cover feels in the hand.
+                        The quiet satisfaction of a ribbon falling exactly where it should.
+                    </p>
+
+                    <p class="mt-5 leading-8 text-white/65 font-light">
+                        Ilume is less about productivity and more about presence.
+                        A private place to collect ideas, memories, lists, plans and unfinished thoughts.
+                    </p>
+
+                    <div class="grid grid-cols-3 gap-5 mt-12">
+                        <div>
+                            <div class="font-display text-3xl">192</div>
+                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Pages</div>
+                        </div>
+                        <div>
+                            <div class="font-display text-3xl">120gsm</div>
+                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Paper</div>
+                        </div>
+                        <div>
+                            <div class="font-display text-3xl">A5</div>
+                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Format</div>
+                        </div>
                     </div>
-                    <div class="border-t border-ink/15 pt-6">
-                        <div class="font-serif text-4xl text-taupe">02</div>
-                        <h3 class="font-serif text-2xl mt-4">Write</h3>
-                        <p class="mt-2 text-sm leading-6 text-ink/55">Put thoughts into words without editing them before they arrive.</p>
-                    </div>
-                    <div class="border-t border-ink/15 pt-6">
-                        <div class="font-serif text-4xl text-taupe">03</div>
-                        <h3 class="font-serif text-2xl mt-4">Return</h3>
-                        <p class="mt-2 text-sm leading-6 text-ink/55">Come back later and rediscover the person you were on that page.</p>
-                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DETAIL GRID -->
+        <section id="details" class="max-w-[1280px] mx-auto px-6 lg:px-10 py-28">
+            <div class="text-center max-w-2xl mx-auto">
+                <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">Considered details</div>
+                <h2 class="font-display text-5xl sm:text-6xl mt-4">Nothing loud. Nothing accidental.</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 mt-16">
+                <div class="rounded-[28px] bg-paper border hairline p-8">
+                    <div class="font-display text-5xl text-mist">01</div>
+                    <h3 class="font-display text-3xl mt-8">Soft paper</h3>
+                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
+                        Smooth enough for fountain pens, substantial enough to feel special.
+                    </p>
+                </div>
+
+                <div class="rounded-[28px] bg-[#EAE0DC] border hairline p-8">
+                    <div class="font-display text-5xl text-plum/30">02</div>
+                    <h3 class="font-display text-3xl mt-8">Quiet palette</h3>
+                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
+                        Tones chosen to complement your desk, shelf, bedside and everyday carry.
+                    </p>
+                </div>
+
+                <div class="rounded-[28px] bg-[#E6E5DD] border hairline p-8">
+                    <div class="font-display text-5xl text-olive/50">03</div>
+                    <h3 class="font-display text-3xl mt-8">Lay-flat form</h3>
+                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
+                        Opens naturally so writing feels effortless from first page to last.
+                    </p>
                 </div>
             </div>
         </section>
 
         <!-- CTA -->
-        <section class="px-6 pb-24">
-            <div class="max-w-7xl mx-auto rounded-[36px] bg-ink text-cream px-8 sm:px-14 py-16 sm:py-20 flex flex-col lg:flex-row justify-between lg:items-center gap-10 overflow-hidden relative">
-                <div class="absolute -right-16 -top-16 w-72 h-72 rounded-full border border-white/10"></div>
-                <div class="absolute -right-4 -top-4 w-44 h-44 rounded-full border border-white/10"></div>
-                <div class="relative max-w-2xl">
-                    <span class="text-[11px] tracking-[0.28em] uppercase text-white/45">Start your Ilume ritual</span>
-                    <h2 class="font-serif text-5xl sm:text-6xl mt-4">Your next chapter deserves a beautiful beginning.</h2>
+        <section class="px-6 lg:px-10 pb-24">
+            <div class="max-w-[1440px] mx-auto rounded-[38px] bg-[#DDD3C8] px-8 sm:px-12 lg:px-16 py-16 lg:py-20 flex flex-col lg:flex-row items-start lg:items-end justify-between gap-12">
+                <div class="max-w-3xl">
+                    <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">For your next chapter</div>
+                    <h2 class="font-display text-5xl sm:text-7xl mt-4 leading-[.9]">
+                        Choose the journal you’ll want to keep forever.
+                    </h2>
                 </div>
-                <button onclick="openOrder()" class="relative shrink-0 rounded-full bg-cream text-ink px-8 py-4 text-xs tracking-[0.18em] uppercase hover:bg-white transition">
-                    Place an order
+
+                <button onclick="openOrder()" class="rounded-full bg-charcoal text-porcelain px-8 py-4 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap">
+                    Place Order
                 </button>
             </div>
         </section>
+
     </main>
 
-    <footer class="border-t border-ink/10 px-6 py-10">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row gap-5 md:items-center md:justify-between text-xs text-ink/50">
-            <div class="font-serif text-2xl tracking-[0.16em] text-ink lowercase">ilume</div>
-            <div>Journals for a beautifully lived life.</div>
-            <div>&copy; {{ year }} Ilume. All rights reserved.</div>
+    <footer class="border-t hairline">
+        <div class="max-w-[1440px] mx-auto px-6 lg:px-10 py-10 flex flex-col md:flex-row gap-5 md:items-center md:justify-between">
+            <div class="font-display text-3xl lowercase">ilume</div>
+            <div class="text-xs text-charcoal/45">Objects for thought. Made for slow living.</div>
+            <div class="text-xs text-charcoal/45">&copy; {{ year }} Ilume</div>
         </div>
     </footer>
 
-    <!-- ORDER MODAL -->
-    <div id="orderModal" class="fixed inset-0 z-[80] hidden">
-        <div class="absolute inset-0 bg-ink/45 backdrop-blur-sm" onclick="closeOrder()"></div>
+    <!-- ORDER OVERLAY -->
+    <div id="orderOverlay" class="fixed inset-0 z-[80] hidden">
+        <div class="absolute inset-0 bg-charcoal/40 backdrop-blur-md" onclick="closeOrder()"></div>
 
-        <div class="absolute inset-y-0 right-0 w-full sm:max-w-xl bg-cream shadow-2xl overflow-y-auto">
-            <div class="p-7 sm:p-10">
-                <div class="flex items-center justify-between">
+        <div class="absolute inset-x-3 bottom-3 sm:inset-auto sm:right-5 sm:top-5 sm:bottom-5 sm:w-[560px] bg-paper rounded-[34px] overflow-y-auto shadow-2xl">
+            <div class="p-7 sm:p-9">
+
+                <div class="flex items-start justify-between gap-6">
                     <div>
-                        <span class="text-[10px] tracking-[0.26em] uppercase text-ink/45">Ilume order</span>
-                        <h2 class="font-serif text-4xl mt-1">Make it yours.</h2>
+                        <div class="text-[10px] uppercase tracking-[0.22em] text-charcoal/40">Private order</div>
+                        <h2 class="font-display text-4xl mt-2">Choose your Ilume.</h2>
                     </div>
-                    <button onclick="closeOrder()" class="w-10 h-10 rounded-full border border-ink/15 text-xl">&times;</button>
+
+                    <button onclick="closeOrder()" class="w-10 h-10 rounded-full border border-charcoal/15 text-lg">
+                        ×
+                    </button>
                 </div>
 
-                <form id="orderForm" class="mt-9 space-y-5">
+                <form id="orderForm" class="mt-8 space-y-5">
+
                     <div>
-                        <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Journal</label>
-                        <select id="product" name="product" required class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4">
-                            {% for product in products %}
-                            <option value="{{ product.id }}">{{ product.name }} — LKR {{ "{:,}".format(product.price) }}</option>
+                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Journal</label>
+                        <select id="journal" name="journal" class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4" required>
+                            {% for journal in journals %}
+                            <option value="{{ journal.id }}">{{ journal.name }} — LKR {{ "{:,}".format(journal.price) }}</option>
                             {% endfor %}
                         </select>
                     </div>
 
                     <div class="grid sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Quantity</label>
-                            <input name="quantity" type="number" min="1" max="10" value="1" required class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4">
+                            <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Quantity</label>
+                            <input name="quantity" type="number" min="1" max="10" value="1" required
+                                   class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
                         </div>
+
                         <div>
-                            <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Name</label>
-                            <input name="name" type="text" required placeholder="Your name" class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4">
+                            <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Full name</label>
+                            <input name="name" type="text" required placeholder="Your name"
+                                   class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
                         </div>
                     </div>
 
                     <div>
-                        <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Email</label>
-                        <input name="email" type="email" required placeholder="you@example.com" class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4">
+                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Email</label>
+                        <input name="email" type="email" required placeholder="you@example.com"
+                               class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
                     </div>
 
                     <div>
-                        <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Phone</label>
-                        <input name="phone" type="tel" required placeholder="+94 7X XXX XXXX" class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4">
+                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Phone</label>
+                        <input name="phone" type="tel" required placeholder="+94 7X XXX XXXX"
+                               class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
                     </div>
 
                     <div>
-                        <label class="text-xs uppercase tracking-[0.15em] text-ink/55">Delivery address</label>
-                        <textarea name="address" rows="4" required placeholder="Street, city, postal code" class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4 resize-none"></textarea>
+                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Delivery address</label>
+                        <textarea name="address" rows="4" required placeholder="Street, city, postal code"
+                                  class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4 resize-none"></textarea>
                     </div>
 
                     <div>
-                        <label class="text-xs uppercase tracking-[0.15em] text-ink/55">A note for us <span class="normal-case tracking-normal">(optional)</span></label>
-                        <textarea name="note" rows="3" placeholder="Gift note, delivery preference..." class="mt-2 w-full bg-white/55 border border-ink/10 rounded-2xl px-4 py-4 resize-none"></textarea>
+                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Gift note <span class="normal-case tracking-normal">(optional)</span></label>
+                        <textarea name="note" rows="3" placeholder="Add a message..."
+                                  class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4 resize-none"></textarea>
                     </div>
 
-                    <button type="submit" class="w-full rounded-full bg-ink text-cream px-7 py-4 text-xs tracking-[0.18em] uppercase hover:opacity-90 transition">
-                        Confirm order
+                    <button type="submit"
+                            class="w-full rounded-full bg-charcoal text-porcelain px-7 py-4 text-[11px] uppercase tracking-[0.18em]">
+                        Confirm Order
                     </button>
 
-                    <p class="text-[11px] leading-5 text-ink/45 text-center">
-                        Demo checkout: orders are accepted by the Flask backend. Connect this endpoint to your database/payment gateway for production.
+                    <p class="text-center text-[10px] leading-5 text-charcoal/40">
+                        Demo checkout. Connect the Flask order endpoint to your database and payment gateway for production.
                     </p>
                 </form>
 
-                <div id="successBox" class="hidden mt-12 bg-white/50 rounded-3xl p-8 text-center border border-ink/10">
-                    <div class="font-serif text-4xl">Thank you.</div>
-                    <p class="mt-3 text-sm leading-6 text-ink/60">Your Ilume order has been received.</p>
-                    <p id="orderNumber" class="mt-4 text-xs tracking-[0.16em] uppercase"></p>
-                    <button onclick="closeOrder()" class="mt-7 rounded-full border border-ink/15 px-6 py-3 text-xs tracking-[0.15em] uppercase">Continue browsing</button>
+                <div id="successState" class="hidden py-16 text-center">
+                    <div class="w-16 h-16 mx-auto rounded-full bg-[#E8DFD7] flex items-center justify-center text-2xl">
+                        ✓
+                    </div>
+                    <div class="font-display text-4xl mt-6">Beautiful choice.</div>
+                    <p class="mt-3 text-sm text-charcoal/55">Your Ilume order has been received.</p>
+                    <div id="orderReference" class="mt-5 text-[10px] uppercase tracking-[0.2em] text-charcoal/45"></div>
+
+                    <button onclick="closeOrder()"
+                            class="mt-8 rounded-full border border-charcoal/15 px-6 py-3 text-[11px] uppercase tracking-[0.18em]">
+                        Continue browsing
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function openOrder(productId) {
-            const modal = document.getElementById('orderModal');
-            modal.classList.remove('hidden');
+        function openOrder(journalId) {
+            const overlay = document.getElementById('orderOverlay');
+            overlay.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
 
-            if (productId) {
-                document.getElementById('product').value = productId;
+            if (journalId) {
+                document.getElementById('journal').value = journalId;
             }
         }
 
         function closeOrder() {
-            document.getElementById('orderModal').classList.add('hidden');
+            document.getElementById('orderOverlay').classList.add('hidden');
             document.body.style.overflow = '';
             document.getElementById('orderForm').classList.remove('hidden');
-            document.getElementById('successBox').classList.add('hidden');
+            document.getElementById('successState').classList.add('hidden');
         }
 
         document.getElementById('orderForm').addEventListener('submit', async function(event) {
             event.preventDefault();
-            const formData = Object.fromEntries(new FormData(event.target).entries());
 
             const button = event.target.querySelector('button[type="submit"]');
-            const originalText = button.textContent;
+            const original = button.textContent;
             button.disabled = true;
-            button.textContent = 'Placing order...';
+            button.textContent = 'Submitting...';
+
+            const payload = Object.fromEntries(new FormData(event.target).entries());
 
             try {
                 const response = await fetch('/api/order', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
 
-                if (!response.ok) throw new Error(data.message || 'Unable to place order');
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to place order.');
+                }
 
                 document.getElementById('orderForm').classList.add('hidden');
-                document.getElementById('successBox').classList.remove('hidden');
-                document.getElementById('orderNumber').textContent = 'Order ' + data.order_id;
+                document.getElementById('successState').classList.remove('hidden');
+                document.getElementById('orderReference').textContent =
+                    'Order reference · ' + data.order_id;
+
                 event.target.reset();
+
             } catch (error) {
                 alert(error.message);
             } finally {
                 button.disabled = false;
-                button.textContent = originalText;
+                button.textContent = original;
             }
         });
     </script>
+
 </body>
 </html>
 """
@@ -404,8 +550,8 @@ HTML_TEMPLATE = r"""
 @application.route("/")
 def home():
     return render_template_string(
-        HTML_TEMPLATE,
-        products=PRODUCTS,
+        PAGE,
+        journals=JOURNALS,
         year=datetime.now().year
     )
 
@@ -413,8 +559,8 @@ def home():
 def place_order():
     data = request.get_json(silent=True) or {}
 
-    required_fields = ["product", "quantity", "name", "email", "phone", "address"]
-    missing = [field for field in required_fields if not str(data.get(field, "")).strip()]
+    required = ["journal", "quantity", "name", "email", "phone", "address"]
+    missing = [field for field in required if not str(data.get(field, "")).strip()]
 
     if missing:
         return jsonify({
@@ -422,31 +568,33 @@ def place_order():
             "message": "Please complete all required fields."
         }), 400
 
-    selected_product = next((p for p in PRODUCTS if p["id"] == data["product"]), None)
-    if not selected_product:
+    selected = next((j for j in JOURNALS if j["id"] == data["journal"]), None)
+    if not selected:
         return jsonify({
             "success": False,
-            "message": "Selected journal was not found."
+            "message": "The selected journal is not available."
         }), 400
 
     try:
         quantity = int(data["quantity"])
         if quantity < 1 or quantity > 10:
             raise ValueError
-    except (ValueError, TypeError):
+    except (TypeError, ValueError):
         return jsonify({
             "success": False,
             "message": "Quantity must be between 1 and 10."
         }), 400
 
-    order_id = "IL-" + uuid.uuid4().hex[:8].upper()
-    total = selected_product["price"] * quantity
+    order_id = "ILM-" + uuid.uuid4().hex[:8].upper()
+    total = selected["price"] * quantity
 
-    # Production note:
-    # Save the order to a database and integrate your payment gateway here.
+    # In production:
+    # 1. Save order to a database.
+    # 2. Trigger email/WhatsApp confirmation.
+    # 3. Redirect to a payment gateway if required.
     print({
         "order_id": order_id,
-        "product": selected_product["name"],
+        "journal": selected["name"],
         "quantity": quantity,
         "total_lkr": total,
         "customer": data.get("name"),
@@ -460,14 +608,14 @@ def place_order():
         "success": True,
         "order_id": order_id,
         "total_lkr": total,
-        "message": "Your Ilume order has been received."
+        "message": "Order received."
     }), 201
 
 @application.route("/health")
-def health_check():
+def health():
     return jsonify({
         "status": "ok",
-        "service": "ilume-store",
+        "service": "ilume-edition-01",
         "timestamp_utc": datetime.utcnow().isoformat() + "Z"
     }), 200
 
