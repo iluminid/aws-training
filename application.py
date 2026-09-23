@@ -1,174 +1,221 @@
-from flask import Flask, render_template_string, jsonify
-from datetime import datetime
-import os
+from flask import Flask, render_template_string
 
-# Specify your actual GitHub repository URL here
-GITHUB_REPO_URL = "https://github.com/your-username/your-repo-name" 
+app = Flask(__name__)
 
-application = Flask(__name__)
-
-# HTML template styled with Tailwind CSS (Cyber-Tech Theme)
-HTML_TEMPLATE = """
+PAGE = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project: AURA | AWS Elastic Beanstalk</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Simulate a running server clock
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('server-time').textContent = now.toISOString().replace('T', ' ').substr(0, 19) + ' UTC';
-        }
-        setInterval(updateClock, 1000);
-    </script>
-    <style>
-        /* Custom font and scanline effect */
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-        body {
-            font-family: 'Share+Tech+Mono', monospace;
-        }
-        .scanlines::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent,
-                transparent 2px,
-                rgba(0, 0, 0, 0.15) 3px,
-                transparent 3px
-            );
-            pointer-events: none;
-            z-index: 10;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ILUME — Journals for Intentional Living</title>
+<meta name="description" content="ILUME creates refined journals for reflection, intention and timeless living.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#171614; --muted:#6d675f; --paper:#fbf8f2; --cream:#f2ece2;
+  --line:#ded5c8; --gold:#a8875d; --dark:#23211f;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6}
+a{text-decoration:none;color:inherit}
+.container{width:min(1180px,90%);margin:auto}
+header{position:sticky;top:0;z-index:20;background:rgba(251,248,242,.9);backdrop-filter:blur(14px);border-bottom:1px solid rgba(222,213,200,.7)}
+.nav{height:78px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-family:"Playfair Display",serif;font-size:1.55rem;letter-spacing:.28em;font-weight:600}
+.links{display:flex;gap:32px;color:var(--muted);font-size:.9rem}
+.links a:hover{color:var(--ink)}
+.hero{min-height:88vh;display:grid;align-items:center;padding:80px 0}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:center}
+.eyebrow{text-transform:uppercase;letter-spacing:.22em;font-size:.76rem;color:var(--gold);margin-bottom:20px}
+h1,h2,h3{font-family:"Playfair Display",serif;font-weight:500}
+h1{font-size:clamp(3.5rem,7vw,7rem);line-height:.98;margin:0 0 28px}
+h1 em{font-weight:500}
+.hero p{max-width:590px;color:var(--muted);font-size:1.05rem;margin-bottom:34px}
+.actions{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border:1px solid var(--ink);font-size:.88rem;transition:.25s}
+.btn.primary{background:var(--ink);color:white}
+.btn.primary:hover{background:transparent;color:var(--ink)}
+.btn.secondary:hover{background:var(--ink);color:white}
+.stage{position:relative;min-height:550px;display:grid;place-items:center}
+.halo{position:absolute;width:430px;height:430px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.95),rgba(200,181,154,.35) 46%,rgba(168,135,93,.08) 70%,transparent 72%)}
+.book{position:relative;width:320px;height:430px;border-radius:5px 14px 14px 5px;background:linear-gradient(135deg,#1f1d1a,#3c3731);box-shadow:0 38px 70px rgba(45,37,28,.27);transform:rotate(-6deg);display:grid;place-items:center}
+.book:before{content:"";position:absolute;left:12px;top:0;bottom:0;width:2px;background:rgba(255,255,255,.08)}
+.book:after{content:"";position:absolute;inset:16px;border:1px solid rgba(205,169,111,.45);border-radius:4px 10px 10px 4px}
+.book span{font-family:"Playfair Display",serif;color:#d5bb8d;letter-spacing:.28em;font-size:1.45rem;z-index:1}
+.section{padding:115px 0}
+.section-head{display:grid;grid-template-columns:.8fr 1.2fr;gap:60px;align-items:end;margin-bottom:60px}
+h2{font-size:clamp(2.3rem,4.2vw,4.2rem);line-height:1.08;margin:0}
+.section-head p{margin:0;color:var(--muted);max-width:630px}
+.collection{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.card{border-top:1px solid var(--line);padding-top:24px}
+.cover{height:380px;border-radius:4px 10px 10px 4px;margin-bottom:24px;display:grid;place-items:center;font-family:"Playfair Display",serif;letter-spacing:.2em;box-shadow:0 18px 40px rgba(70,58,44,.12)}
+.cover.one{background:#2b2926;color:#d7bd8f}
+.cover.two{background:#c6b59b;color:#2d2823}
+.cover.three{background:#e6ded1;color:#41382f}
+.card h3{font-size:1.55rem;margin:0 0 8px}
+.card p{color:var(--muted);margin:0;font-size:.94rem}
+.philosophy{background:var(--cream)}
+.quote{max-width:900px;text-align:center;margin:auto}
+.quote p{font-family:"Playfair Display",serif;font-size:clamp(2rem,4.4vw,4.5rem);line-height:1.15;margin:0}
+.quote span{display:block;margin-top:28px;color:var(--muted);font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}
+.ritual{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+.ritual article{border-top:1px solid var(--line);padding-top:25px}
+.no{color:var(--gold);font-size:.76rem;letter-spacing:.2em;margin-bottom:16px}
+.ritual h3{font-size:1.55rem;margin:0 0 10px}
+.ritual p{color:var(--muted);margin:0}
+.news{background:var(--dark);color:#fff;padding:95px 0}
+.news-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:end}
+.news p{color:#c9c1b6;max-width:520px}
+.signup{display:flex;border-bottom:1px solid #6d665d}
+.signup input{flex:1;border:0;outline:0;background:transparent;color:#fff;padding:18px 0;font:inherit}
+.signup input::placeholder{color:#918a80}
+.signup button{border:0;background:none;color:#fff;cursor:pointer;font-size:.8rem;letter-spacing:.1em}
+footer{background:var(--dark);color:#aaa198;border-top:1px solid rgba(255,255,255,.08);padding:30px 0}
+.footer{display:flex;justify-content:space-between;gap:20px;font-size:.82rem}
+@media(max-width:860px){
+ .links{display:none}
+ .hero-grid,.section-head,.news-grid{grid-template-columns:1fr}
+ .collection,.ritual{grid-template-columns:1fr}
+ .stage{min-height:460px}
+ .book{width:270px;height:365px}
+ .halo{width:340px;height:340px}
+ .cover{height:320px}
+ .section{padding:85px 0}
+ .footer{flex-direction:column}
+}
+</style>
 </head>
-<body class="bg-black text-cyan-400 min-h-screen flex flex-col justify-between scanlines overflow-hidden">
-    
-    <!-- Background grid effect -->
-    <div class="fixed inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/dark-dotted-squares.png')]"></div>
+<body>
+<header>
+  <div class="container nav">
+    <a href="#" class="brand">ILUME</a>
+    <nav class="links">
+      <a href="#collection">Collection</a>
+      <a href="#philosophy">Philosophy</a>
+      <a href="#ritual">The Ritual</a>
+      <a href="#letters">Letters</a>
+    </nav>
+  </div>
+</header>
 
-    <!-- Header / Navbar -->
-    <header class="relative z-20 w-full py-4 px-6 border-b border-cyan-950 flex justify-between items-center max-w-7xl mx-auto bg-black/50 backdrop-blur-sm">
-        <div class="flex items-center space-x-3">
-            <div class="relative h-3 w-3 flex items-center justify-center">
-                <div class="absolute h-full w-full bg-cyan-500 rounded-full animate-ping opacity-75"></div>
-                <div class="relative h-2 w-2 bg-cyan-300 rounded-full"></div>
-            </div>
-            <span class="font-bold text-sm tracking-widest uppercase text-cyan-300">SYS_ID: AURA_CORE_1</span>
-        </div>
-        <div class="text-xs px-3 py-1 rounded border border-cyan-900 bg-cyan-950/50 text-cyan-500">
-            AWS_REGION: {{ aws_region }}
-        </div>
-    </header>
+<main>
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <div class="eyebrow">Journals for intentional living</div>
+      <h1>Make space for what <em>matters.</em></h1>
+      <p>ILUME creates beautifully considered journals for reflection, focus and quiet ambition. Designed to live beside you — through ideas, seasons and becoming.</p>
+      <div class="actions">
+        <a class="btn primary" href="#collection">Explore the collection</a>
+        <a class="btn secondary" href="#philosophy">Our philosophy</a>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="halo"></div>
+      <div class="book"><span>ILUME</span></div>
+    </div>
+  </div>
+</section>
 
-    <!-- Main Content Grid -->
-    <main class="flex-grow flex items-center justify-center px-6 py-8 relative z-20">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-7xl h-auto md:h-[70vh]">
-            
-            <!-- Left Panel: Status -->
-            <div class="md:col-span-3 bg-black border border-cyan-900 p-8 rounded-lg shadow-inner flex flex-col justify-between">
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between border-b border-cyan-900 pb-2 mb-4">
-                        <h1 class="text-4xl md:text-6xl font-extrabold text-white tracking-tight uppercase">DEPLOYMENT_</h1>
-                        <span class="text-5xl font-black text-green-400">SUCCESS</span>
-                    </div>
+<section class="section" id="collection">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">The collection</div>
+        <h2>Designed for the way you think.</h2>
+      </div>
+      <p>Purposeful pages, refined materials and understated design. Each ILUME journal is created to make writing feel like a ritual.</p>
+    </div>
 
-                    <div class="text-cyan-600 text-lg leading-relaxed max-w-3xl">
-                        <p class="animate-pulse">/// STATUS: CORE NODE OPERATIONAL. DEPLOYMENT PIPELINE [GITHUB_ACTIONS] VALIDATED.</p>
-                        <p class="mt-2">AWS Elastic Beanstalk successfully initialized with Python/Gunicorn runtime.</p>
-                        <p class="mt-2 text-white">ENVIRONMENT: {{ env_name }}</p>
-                    </div>
-                </div>
+    <div class="collection">
+      <article class="card">
+        <div class="cover one">ILUME</div>
+        <h3>The Reflection Journal</h3>
+        <p>A quiet companion for daily notes, deeper reflection and thoughtful beginnings.</p>
+      </article>
+      <article class="card">
+        <div class="cover two">ILUME</div>
+        <h3>The Intention Journal</h3>
+        <p>Designed around clarity, priorities and the small decisions that shape meaningful progress.</p>
+      </article>
+      <article class="card">
+        <div class="cover three">ILUME</div>
+        <h3>The Unbound Journal</h3>
+        <p>Open pages for ideas without structure — sketches, fragments, observations and everything between.</p>
+      </article>
+    </div>
+  </div>
+</section>
 
-                <!-- Data Terminal -->
-                <div class="bg-gray-950 p-5 rounded font-mono text-xs mt-8 border border-gray-800 text-cyan-300 space-y-2 overflow-auto h-32">
-                    <p>> INITIALIZING EB DEPLOYMENT... [OK]</p>
-                    <p>> VERIFYING REQUIREMENTS.TXT... [OK]</p>
-                    <p>> STARTING GUNICORN... [OK]</p>
-                    <p>> APPLICATION HEALTH CHECK: ACTIVE... [OK]</p>
-                    <p class="text-green-400">> > > SYSTEM READY.</p>
-                </div>
-            </div>
+<section class="section philosophy" id="philosophy">
+  <div class="container quote">
+    <p>“A beautiful life is rarely built in a rush. It begins with noticing.”</p>
+    <span>The ILUME philosophy</span>
+  </div>
+</section>
 
-            <!-- Right Panel: System Info & Links -->
-            <div class="bg-black border border-cyan-900 p-6 rounded-lg shadow-inner space-y-6 flex flex-col justify-between">
-                
-                <div>
-                    <h2 class="text-xl font-bold text-cyan-200 uppercase border-b border-cyan-900 pb-2 mb-4">SYSTEM_STATS</h2>
-                    
-                    <div class="space-y-4">
-                        <div class="bg-cyan-950 p-4 rounded border border-cyan-900">
-                            <p class="text-xs text-cyan-600 uppercase tracking-wider">SERVER_TIME_UTC</p>
-                            <p id="server-time" class="text-lg text-white font-bold mt-1 font-mono">{{ current_time }}</p>
-                        </div>
+<section class="section" id="ritual">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">The ritual</div>
+        <h2>A little more presence, every day.</h2>
+      </div>
+      <p>ILUME is not about writing more. It is about noticing more. A few intentional minutes can change the quality of an entire day.</p>
+    </div>
 
-                        <div class="bg-cyan-950 p-4 rounded border border-cyan-900">
-                            <p class="text-xs text-cyan-600 uppercase tracking-wider">ENV_HEALTH</p>
-                            <p class="text-green-400 font-bold mt-1 text-lg flex items-center space-x-2">
-                                <span class="relative flex h-3 w-3">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                                </span>
-                                <span>NOMINAL</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
+    <div class="ritual">
+      <article>
+        <div class="no">01</div>
+        <h3>Arrive</h3>
+        <p>Put away the noise. Open your journal and give yourself one uninterrupted moment.</p>
+      </article>
+      <article>
+        <div class="no">02</div>
+        <h3>Notice</h3>
+        <p>Write what is present — an idea, a feeling, a question, an intention worth keeping.</p>
+      </article>
+      <article>
+        <div class="no">03</div>
+        <h3>Illuminate</h3>
+        <p>Return to what matters with greater clarity, perspective and purpose.</p>
+      </article>
+    </div>
+  </div>
+</section>
 
-                <!-- Link Section -->
-                <div class="space-y-3 pt-6 border-t border-cyan-900">
-                    <a href="/health" class="block w-full text-center px-6 py-3 rounded bg-cyan-900 hover:bg-cyan-800 text-white font-bold text-sm transition uppercase tracking-wider shadow-lg shadow-cyan-900/20">
-                        RUN HEALTH CHECK
-                    </a>
-                    <a href="{{ github_url }}" target="_blank" class="block w-full text-center px-6 py-3 rounded bg-gray-900 hover:bg-gray-800 text-cyan-300 font-bold text-sm border border-gray-700 transition uppercase tracking-wider flex items-center justify-center space-x-2">
-                        <svg height="20" width="20" class="fill-current" viewBox="0 0 16 16" version="1.1" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path></svg>
-                        <span>SOURCE_CODE_REPO</span>
-                    </a>
-                </div>
-            </div>
+<section class="news" id="letters">
+  <div class="container news-grid">
+    <div>
+      <div class="eyebrow">Letters from ILUME</div>
+      <h2>Notes on reflection, creativity and intentional living.</h2>
+      <p>Occasional letters for people who value beautiful objects, thoughtful routines and a slower kind of clarity.</p>
+    </div>
+    <form class="signup" onsubmit="event.preventDefault(); alert('Welcome to ILUME.');">
+      <input type="email" placeholder="Your email address" required>
+      <button type="submit">JOIN</button>
+    </form>
+  </div>
+</section>
+</main>
 
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="relative z-20 py-4 text-center text-xs text-cyan-900 border-t border-cyan-950 max-w-7xl mx-auto w-full bg-black/50">
-        [AURA_SYSTEM_RUNNING] >> AWS Elastic Beanstalk >> Flask v3.x
-    </footer>
-
+<footer>
+  <div class="container footer">
+    <div>© 2026 ILUME. All rights reserved.</div>
+    <div>Designed for a life well considered.</div>
+  </div>
+</footer>
 </body>
 </html>
 """
 
-@application.route('/')
+@app.route("/")
 def home():
-    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    # Get environment name from AWS metadata if available, else default
-    env_name = os.environ.get('AWS_EB_ENVIRONMENT_NAME', 'LOCAL_DEBUG')
-    aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-    
-    return render_template_string(
-        HTML_TEMPLATE, 
-        current_time=now,
-        github_url=GITHUB_REPO_URL,
-        env_name=env_name,
-        aws_region=aws_region
-    )
+    return render_template_string(PAGE)
 
-@application.route('/health')
-def health_check():
-    return jsonify({
-        "status": "nominal",
-        "service_id": "aura-core-1",
-        "timestamp_utc": datetime.utcnow().isoformat()
-    }), 200
-
-if __name__ == '__main__':
-    # Local development server execution
-    application.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
