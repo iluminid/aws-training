@@ -1,623 +1,248 @@
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, jsonify, render_template_string
 from datetime import datetime
-import uuid
+import math
+import os
+import random
+import threading
+import time
 
 application = Flask(__name__)
+app = application
 
-JOURNALS = [
-    {
-        "id": "pearl",
-        "name": "Pearl No. 01",
-        "tone": "Warm Ivory",
-        "price": 6800,
-        "image": "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1200&q=88"
-    },
-    {
-        "id": "mauve",
-        "name": "Mauve No. 02",
-        "tone": "Dusty Rose",
-        "price": 7200,
-        "image": "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=1200&q=88"
-    },
-    {
-        "id": "sage",
-        "name": "Sage No. 03",
-        "tone": "Muted Green",
-        "price": 7200,
-        "image": "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?auto=format&fit=crop&w=1200&q=88"
-    }
-]
+_lock = threading.Lock()
+_started_at = time.time()
+_last_update = time.time()
+_energy_kwh = 1842.620
+_peak_power_kw = 0.0
 
-PAGE = r"""
-<!DOCTYPE html>
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def generate_dummy_power_data():
+    global _last_update, _energy_kwh, _peak_power_kw
+
+    with _lock:
+        now = time.time()
+        elapsed = max(0.001, now - _last_update)
+        _last_update = now
+
+        # Realistic-looking industrial load that changes every request.
+        total_kw = (
+            52.0
+            + math.sin(now / 23.0) * 5.0
+            + math.sin(now / 7.0) * 2.0
+            + random.uniform(-1.3, 1.3)
+        )
+        total_kw = clamp(total_kw, 38.0, 68.0)
+
+        voltages = [
+            231.0 + math.sin(now / 8.0) * 1.8 + random.uniform(-0.8, 0.8),
+            230.5 + math.sin(now / 8.5 + 1.5) * 1.6 + random.uniform(-0.8, 0.8),
+            231.7 + math.sin(now / 9.0 + 3.0) * 1.7 + random.uniform(-0.8, 0.8),
+        ]
+
+        power_factor = clamp(
+            0.94 + math.sin(now / 14.0) * 0.018 + random.uniform(-0.008, 0.008),
+            0.89,
+            0.99,
+        )
+
+        shares = [
+            0.333 + random.uniform(-0.012, 0.012),
+            0.333 + random.uniform(-0.012, 0.012),
+            0.334 + random.uniform(-0.012, 0.012),
+        ]
+        share_total = sum(shares)
+        shares = [s / share_total for s in shares]
+        phase_power = [total_kw * s for s in shares]
+
+        currents = [
+            phase_power[i] * 1000.0 / (voltages[i] * power_factor)
+            for i in range(3)
+        ]
+
+        frequency = 50.0 + math.sin(now / 11.0) * 0.035 + random.uniform(-0.015, 0.015)
+        apparent_kva = total_kw / max(power_factor, 0.01)
+        reactive_kvar = math.sqrt(max(0.0, apparent_kva ** 2 - total_kw ** 2))
+
+        _energy_kwh += total_kw * elapsed / 3600.0
+        _peak_power_kw = max(_peak_power_kw, total_kw)
+
+        avg_voltage = sum(voltages) / 3.0
+        avg_current = sum(currents) / 3.0
+        imbalance = (max(currents) - min(currents)) / max(avg_current, 0.01) * 100.0
+
+        if total_kw > 65:
+            status = "HIGH LOAD"
+            status_level = "warning"
+        elif power_factor < 0.91:
+            status = "LOW POWER FACTOR"
+            status_level = "warning"
+        elif avg_voltage < 218 or avg_voltage > 242:
+            status = "VOLTAGE ALERT"
+            status_level = "danger"
+        else:
+            status = "NORMAL"
+            status_level = "normal"
+
+        return {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "status": status,
+            "status_level": status_level,
+            "total_power_kw": round(total_kw, 2),
+            "apparent_power_kva": round(apparent_kva, 2),
+            "reactive_power_kvar": round(reactive_kvar, 2),
+            "energy_kwh": round(_energy_kwh, 3),
+            "peak_power_kw": round(_peak_power_kw, 2),
+            "power_factor": round(power_factor, 3),
+            "frequency_hz": round(frequency, 2),
+            "avg_voltage_v": round(avg_voltage, 1),
+            "avg_current_a": round(avg_current, 1),
+            "current_imbalance_pct": round(imbalance, 1),
+            "uptime_seconds": int(now - _started_at),
+            "phases": {
+                "L1": {
+                    "voltage_v": round(voltages[0], 1),
+                    "current_a": round(currents[0], 1),
+                    "power_kw": round(phase_power[0], 2),
+                },
+                "L2": {
+                    "voltage_v": round(voltages[1], 1),
+                    "current_a": round(currents[1], 1),
+                    "power_kw": round(phase_power[1], 2),
+                },
+                "L3": {
+                    "voltage_v": round(voltages[2], 1),
+                    "current_a": round(currents[2], 1),
+                    "power_kw": round(phase_power[2], 2),
+                },
+            },
+        }
+
+
+DASHBOARD_HTML = r'''<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ilume — Objects for Thought</title>
-    <meta name="description" content="Ilume journals — refined objects for reflection, intention and quiet ritual.">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        porcelain: '#F6F1EA',
-                        paper: '#FBF8F3',
-                        plum: '#4D3C46',
-                        mist: '#CFC6CD',
-                        olive: '#A5A89B',
-                        blush: '#D8C4C0',
-                        almond: '#D9CCBC',
-                        charcoal: '#282522'
-                    },
-                    fontFamily: {
-                        display: ['DM Serif Display', 'serif'],
-                        body: ['Manrope', 'sans-serif']
-                    }
-                }
-            }
-        }
-    </script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
-
-    <style>
-        html { scroll-behavior: smooth; }
-        body { background:#F6F1EA; color:#282522; }
-
-        .noise {
-            background-image:
-                radial-gradient(circle at 20% 20%, rgba(255,255,255,.7), transparent 18%),
-                radial-gradient(circle at 80% 0%, rgba(207,198,205,.28), transparent 22%),
-                radial-gradient(circle at 60% 70%, rgba(216,196,192,.22), transparent 25%);
-        }
-
-        .hairline { border-color: rgba(40,37,34,.12); }
-
-        .card-glow {
-            box-shadow: 0 25px 70px rgba(65,52,58,.10);
-        }
-
-        .soft-float {
-            animation: float 7s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%,100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .marquee {
-            overflow:hidden;
-            white-space:nowrap;
-        }
-
-        .marquee-track {
-            display:inline-block;
-            animation: marquee 20s linear infinite;
-        }
-
-        @keyframes marquee {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-        }
-
-        .pill {
-            transition: all .25s ease;
-        }
-
-        .pill:hover {
-            background:#282522;
-            color:#F6F1EA;
-        }
-
-        .product img {
-            transition: transform .7s cubic-bezier(.2,.7,.2,1);
-        }
-
-        .product:hover img {
-            transform: scale(1.035);
-        }
-
-        input, textarea, select {
-            outline:none;
-        }
-
-        ::selection {
-            background:#D8C4C0;
-            color:#282522;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PowerPulse | IoT Power Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#06101f;--panel:rgba(13,29,50,.84);--border:rgba(111,168,255,.14);
+  --text:#eef6ff;--muted:#7f98b7;--accent:#55d8ff;--good:#8dffcf;
+  --warn:#ffc857;--danger:#ff6b7a;
+}
+*{box-sizing:border-box} body{margin:0;min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(circle at 10% 0%,rgba(35,139,255,.16),transparent 33%),radial-gradient(circle at 90% 10%,rgba(73,255,196,.08),transparent 30%),linear-gradient(145deg,var(--bg),#050b14 70%)}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.14;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:36px 36px}
+.wrap{width:min(1480px,calc(100% - 32px));margin:auto;padding:24px 0 38px;position:relative;z-index:1}
+header{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:20px}.brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;border:1px solid rgba(85,216,255,.34);background:linear-gradient(145deg,rgba(85,216,255,.2),rgba(141,255,207,.08));font-size:23px;color:var(--accent)}
+h1{margin:0;font-size:1.18rem}.sub{margin:4px 0 0;color:var(--muted);font-size:.82rem}.live{display:flex;align-items:center;gap:10px;padding:9px 13px;border:1px solid var(--border);border-radius:999px;background:rgba(8,22,38,.72);color:var(--muted);font-size:.8rem}.dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(141,255,207,.55);animation:pulse 1.8s infinite}@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(141,255,207,0)}}
+.grid-hero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-bottom:16px}.panel{background:linear-gradient(145deg,var(--panel),rgba(8,20,35,.84));border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.28);backdrop-filter:blur(14px)}.power{padding:25px 28px}.eyebrow{color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-size:.7rem;font-weight:700}.big{display:flex;align-items:baseline;gap:10px;margin-top:13px}.big strong{font-size:clamp(3.1rem,7vw,6rem);line-height:.92;letter-spacing:-.055em;font-weight:650}.big span{color:var(--accent);font-weight:700}.meta{display:flex;flex-wrap:wrap;gap:18px 28px;margin-top:22px;color:var(--muted);font-size:.8rem}.meta b{display:block;color:var(--text);margin-top:5px;font-size:.98rem}
+.status{padding:22px}.status-head{display:flex;justify-content:space-between;gap:14px}.status-name{font-size:1.25rem;font-weight:680;margin-top:8px}.pill{padding:8px 11px;border-radius:999px;font-size:.7rem;font-weight:800;letter-spacing:.06em;background:rgba(141,255,207,.09);color:var(--good);border:1px solid rgba(141,255,207,.22)}.pill.warning{background:rgba(255,200,87,.1);color:var(--warn);border-color:rgba(255,200,87,.25)}.pill.danger{background:rgba(255,107,122,.1);color:var(--danger);border-color:rgba(255,107,122,.25)}
+.quality{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.mini{padding:14px;border-radius:15px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}.mini span{color:var(--muted);font-size:.73rem}.mini strong{display:block;margin-top:7px;font-size:1.05rem}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}.metric{padding:17px 18px}.label{color:var(--muted);font-size:.73rem;font-weight:700}.value{margin-top:13px;font-size:1.55rem;font-weight:670}.unit{color:var(--accent);font-size:.78rem;margin-left:5px}.hint{margin-top:6px;color:#607995;font-size:.7rem}
+.main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(310px,.72fr);gap:18px}.chart-panel,.phase-panel{padding:21px}.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.title h2{margin:0;font-size:.96rem}.title span{color:var(--muted);font-size:.7rem}.chart-wrap{height:315px}.phase-list{display:flex;flex-direction:column;gap:10px}.phase{padding:15px;border-radius:15px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}.phase-top{display:flex;justify-content:space-between;margin-bottom:12px}.phase-name{font-weight:750;font-size:.8rem}.phase-values{display:grid;grid-template-columns:1fr 1fr;gap:8px;color:var(--muted);font-size:.7rem}.phase-values b{color:var(--text);float:right}.error{display:none;margin-bottom:14px;padding:11px 13px;border-radius:11px;color:#ff9ca7;background:rgba(255,107,122,.09);border:1px solid rgba(255,107,122,.22);font-size:.8rem}footer{display:flex;justify-content:space-between;gap:10px;color:#526983;font-size:.7rem;margin-top:16px;padding:0 4px}
+@media(max-width:1000px){.grid-hero,.main{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.wrap{width:min(100% - 20px,1480px);padding-top:13px}.live .extra{display:none}.power,.status,.chart-panel,.phase-panel{padding:18px}.metrics{gap:9px}.metric{padding:14px}.chart-wrap{height:260px}footer{flex-direction:column}}
+</style>
 </head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand"><div class="logo">⚡</div><div><h1>PowerPulse</h1><p class="sub">Industrial IoT Energy Monitoring</p></div></div>
+  <div class="live"><span class="dot"></span><b>LIVE</b><span class="extra">• refreshes every 1 second</span><span id="updated">--:--:--</span></div>
+</header>
+<div id="error" class="error">Live data connection lost. Retrying automatically…</div>
 
-<body class="font-body antialiased noise">
-
-    <!-- TOP NOTE -->
-    <div class="bg-charcoal text-porcelain text-[10px] sm:text-xs tracking-[0.22em] uppercase text-center py-2.5">
-        Complimentary islandwide delivery on orders over LKR 10,000
+<section class="grid-hero">
+  <div class="panel power">
+    <div class="eyebrow">Real-time active power</div>
+    <div class="big"><strong id="total">--</strong><span>kW</span></div>
+    <div class="meta">
+      <div>Total Energy<b><span id="energy">--</span> kWh</b></div>
+      <div>Peak Demand<b><span id="peak">--</span> kW</b></div>
+      <div>Apparent Power<b><span id="apparent">--</span> kVA</b></div>
+      <div>Reactive Power<b><span id="reactive">--</span> kvar</b></div>
     </div>
-
-    <!-- NAV -->
-    <header class="sticky top-0 z-40 bg-porcelain/90 backdrop-blur-xl border-b hairline">
-        <div class="max-w-[1440px] mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
-            <a href="#" class="font-display text-[34px] tracking-tight lowercase">ilume</a>
-
-            <nav class="hidden md:flex items-center gap-10 text-xs uppercase tracking-[0.18em] text-charcoal/60">
-                <a href="#collection" class="hover:text-charcoal transition">Shop</a>
-                <a href="#atelier" class="hover:text-charcoal transition">Atelier</a>
-                <a href="#details" class="hover:text-charcoal transition">Details</a>
-            </nav>
-
-            <button onclick="openOrder()" class="pill border border-charcoal/20 rounded-full px-5 py-2.5 text-[11px] uppercase tracking-[0.18em]">
-                Order Journal
-            </button>
-        </div>
-    </header>
-
-    <main>
-
-        <!-- HERO -->
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 pt-10 lg:pt-16 pb-24">
-            <div class="grid lg:grid-cols-[1.05fr_.95fr] gap-8 lg:gap-14 items-stretch">
-
-                <!-- editorial panel -->
-                <div class="min-h-[700px] bg-paper rounded-[36px] p-8 sm:p-12 lg:p-16 flex flex-col justify-between border hairline">
-                    <div class="flex items-center justify-between text-[10px] sm:text-xs tracking-[0.2em] uppercase text-charcoal/45">
-                        <span>Edition 01 — 2026</span>
-                        <span>Objects for Thought</span>
-                    </div>
-
-                    <div class="max-w-3xl my-14">
-                        <div class="text-xs uppercase tracking-[0.22em] text-charcoal/40 mb-7">
-                            For quiet minds & beautiful routines
-                        </div>
-
-                        <h1 class="font-display text-[68px] sm:text-[88px] lg:text-[110px] leading-[.84] tracking-[-0.04em]">
-                            A softer<br>
-                            way to
-                            <span class="italic text-plum">begin.</span>
-                        </h1>
-
-                        <p class="mt-9 max-w-xl text-base sm:text-lg leading-8 text-charcoal/60 font-light">
-                            Ilume journals are designed like small interior objects:
-                            tactile, poised, timeless and made to live beautifully beside you.
-                        </p>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8">
-                        <a href="#collection" class="inline-flex items-center justify-center rounded-full bg-charcoal text-porcelain px-7 py-4 text-[11px] uppercase tracking-[0.18em]">
-                            Discover Edition 01
-                        </a>
-
-                        <div class="text-xs text-charcoal/45">
-                            Lay-flat binding · 120gsm paper · Linen-touch covers
-                        </div>
-                    </div>
-                </div>
-
-                <!-- art image -->
-                <div class="relative min-h-[700px] rounded-[36px] overflow-hidden card-glow">
-                    <img
-                        src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1500&q=90"
-                        alt="Minimal luxury desk with journal"
-                        class="absolute inset-0 w-full h-full object-cover"
-                    >
-                    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-charcoal/30"></div>
-
-                    <div class="absolute left-6 right-6 bottom-6 bg-porcelain/88 backdrop-blur-xl rounded-[26px] p-6 sm:p-7">
-                        <div class="flex items-end justify-between gap-6">
-                            <div>
-                                <div class="text-[10px] uppercase tracking-[0.22em] text-charcoal/45">Studio note</div>
-                                <div class="font-display text-3xl sm:text-4xl mt-2">Made to sit beautifully in your day.</div>
-                            </div>
-                            <div class="hidden sm:block text-xs text-charcoal/50 max-w-[170px] leading-6">
-                                Minimal forms. Gentle texture. A calm place for everything in your head.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- MARQUEE -->
-        <section class="border-y hairline py-5 bg-porcelain/60">
-            <div class="marquee text-[11px] tracking-[0.28em] uppercase text-charcoal/45">
-                <div class="marquee-track">
-                    Ilume&nbsp;&nbsp;·&nbsp;&nbsp;Write Slowly&nbsp;&nbsp;·&nbsp;&nbsp;Keep Beautifully&nbsp;&nbsp;·&nbsp;&nbsp;Reflect Often&nbsp;&nbsp;·&nbsp;&nbsp;
-                    Ilume&nbsp;&nbsp;·&nbsp;&nbsp;Write Slowly&nbsp;&nbsp;·&nbsp;&nbsp;Keep Beautifully&nbsp;&nbsp;·&nbsp;&nbsp;Reflect Often&nbsp;&nbsp;·&nbsp;&nbsp;
-                </div>
-            </div>
-        </section>
-
-        <!-- PRODUCTS -->
-        <section id="collection" class="max-w-[1440px] mx-auto px-6 lg:px-10 py-28">
-            <div class="grid lg:grid-cols-[.65fr_1.35fr] gap-14">
-                <div class="lg:sticky lg:top-28 lg:self-start">
-                    <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">Edition 01</div>
-                    <h2 class="font-display text-5xl sm:text-6xl mt-4 leading-[.95]">
-                        Three tones.<br>One quiet ritual.
-                    </h2>
-                    <p class="mt-6 max-w-sm leading-7 text-charcoal/55 text-sm">
-                        A restrained palette inspired by calm interiors, early light,
-                        linen, dried petals and quiet rooms.
-                    </p>
-                </div>
-
-                <div class="space-y-8">
-                    {% for journal in journals %}
-                    <article class="product bg-paper rounded-[30px] overflow-hidden border hairline grid md:grid-cols-[1.1fr_.9fr] min-h-[430px]">
-                        <div class="overflow-hidden">
-                            <img src="{{ journal.image }}" alt="{{ journal.name }}" class="w-full h-full object-cover min-h-[360px]">
-                        </div>
-
-                        <div class="p-8 sm:p-10 flex flex-col justify-between">
-                            <div>
-                                <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-charcoal/40">
-                                    <span>{{ journal.tone }}</span>
-                                    <span>Edition 01</span>
-                                </div>
-
-                                <h3 class="font-display text-4xl sm:text-5xl mt-7">{{ journal.name }}</h3>
-
-                                <p class="mt-5 text-sm leading-7 text-charcoal/55">
-                                    192 softly toned pages, subtle ruled layout,
-                                    ribbon marker and understated foil detail.
-                                </p>
-                            </div>
-
-                            <div class="mt-10 flex items-center justify-between gap-4">
-                                <div>
-                                    <div class="text-[10px] uppercase tracking-[0.18em] text-charcoal/40">Price</div>
-                                    <div class="font-display text-2xl mt-1">LKR {{ "{:,}".format(journal.price) }}</div>
-                                </div>
-
-                                <button onclick="openOrder('{{ journal.id }}')" class="pill rounded-full border border-charcoal/20 px-6 py-3 text-[11px] uppercase tracking-[0.18em]">
-                                    Select
-                                </button>
-                            </div>
-                        </div>
-                    </article>
-                    {% endfor %}
-                </div>
-            </div>
-        </section>
-
-        <!-- ATELIER -->
-        <section id="atelier" class="bg-plum text-porcelain py-28">
-            <div class="max-w-[1280px] mx-auto px-6 lg:px-10 grid lg:grid-cols-2 gap-16 items-center">
-                <div class="relative">
-                    <div class="absolute -top-5 -left-5 w-28 h-28 border border-white/15 rounded-full"></div>
-                    <img
-                        src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=88"
-                        alt="Handwriting in a journal"
-                        class="relative rounded-[34px] w-full aspect-[4/5] object-cover"
-                    >
-                </div>
-
-                <div class="lg:pl-8">
-                    <div class="text-[10px] uppercase tracking-[0.24em] text-white/45">The atelier</div>
-                    <h2 class="font-display text-5xl sm:text-6xl mt-5 leading-[.98]">
-                        Designed for people who notice small things.
-                    </h2>
-
-                    <p class="mt-8 leading-8 text-white/65 font-light">
-                        The weight of a page. The way a cover feels in the hand.
-                        The quiet satisfaction of a ribbon falling exactly where it should.
-                    </p>
-
-                    <p class="mt-5 leading-8 text-white/65 font-light">
-                        Ilume is less about productivity and more about presence.
-                        A private place to collect ideas, memories, lists, plans and unfinished thoughts.
-                    </p>
-
-                    <div class="grid grid-cols-3 gap-5 mt-12">
-                        <div>
-                            <div class="font-display text-3xl">192</div>
-                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Pages</div>
-                        </div>
-                        <div>
-                            <div class="font-display text-3xl">120gsm</div>
-                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Paper</div>
-                        </div>
-                        <div>
-                            <div class="font-display text-3xl">A5</div>
-                            <div class="text-[10px] uppercase tracking-[0.18em] text-white/40 mt-1">Format</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- DETAIL GRID -->
-        <section id="details" class="max-w-[1280px] mx-auto px-6 lg:px-10 py-28">
-            <div class="text-center max-w-2xl mx-auto">
-                <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">Considered details</div>
-                <h2 class="font-display text-5xl sm:text-6xl mt-4">Nothing loud. Nothing accidental.</h2>
-            </div>
-
-            <div class="grid md:grid-cols-3 gap-6 mt-16">
-                <div class="rounded-[28px] bg-paper border hairline p-8">
-                    <div class="font-display text-5xl text-mist">01</div>
-                    <h3 class="font-display text-3xl mt-8">Soft paper</h3>
-                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
-                        Smooth enough for fountain pens, substantial enough to feel special.
-                    </p>
-                </div>
-
-                <div class="rounded-[28px] bg-[#EAE0DC] border hairline p-8">
-                    <div class="font-display text-5xl text-plum/30">02</div>
-                    <h3 class="font-display text-3xl mt-8">Quiet palette</h3>
-                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
-                        Tones chosen to complement your desk, shelf, bedside and everyday carry.
-                    </p>
-                </div>
-
-                <div class="rounded-[28px] bg-[#E6E5DD] border hairline p-8">
-                    <div class="font-display text-5xl text-olive/50">03</div>
-                    <h3 class="font-display text-3xl mt-8">Lay-flat form</h3>
-                    <p class="mt-3 text-sm leading-7 text-charcoal/55">
-                        Opens naturally so writing feels effortless from first page to last.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <!-- CTA -->
-        <section class="px-6 lg:px-10 pb-24">
-            <div class="max-w-[1440px] mx-auto rounded-[38px] bg-[#DDD3C8] px-8 sm:px-12 lg:px-16 py-16 lg:py-20 flex flex-col lg:flex-row items-start lg:items-end justify-between gap-12">
-                <div class="max-w-3xl">
-                    <div class="text-[10px] uppercase tracking-[0.24em] text-charcoal/40">For your next chapter</div>
-                    <h2 class="font-display text-5xl sm:text-7xl mt-4 leading-[.9]">
-                        Choose the journal you’ll want to keep forever.
-                    </h2>
-                </div>
-
-                <button onclick="openOrder()" class="rounded-full bg-charcoal text-porcelain px-8 py-4 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap">
-                    Place Order
-                </button>
-            </div>
-        </section>
-
-    </main>
-
-    <footer class="border-t hairline">
-        <div class="max-w-[1440px] mx-auto px-6 lg:px-10 py-10 flex flex-col md:flex-row gap-5 md:items-center md:justify-between">
-            <div class="font-display text-3xl lowercase">ilume</div>
-            <div class="text-xs text-charcoal/45">Objects for thought. Made for slow living.</div>
-            <div class="text-xs text-charcoal/45">&copy; {{ year }} Ilume</div>
-        </div>
-    </footer>
-
-    <!-- ORDER OVERLAY -->
-    <div id="orderOverlay" class="fixed inset-0 z-[80] hidden">
-        <div class="absolute inset-0 bg-charcoal/40 backdrop-blur-md" onclick="closeOrder()"></div>
-
-        <div class="absolute inset-x-3 bottom-3 sm:inset-auto sm:right-5 sm:top-5 sm:bottom-5 sm:w-[560px] bg-paper rounded-[34px] overflow-y-auto shadow-2xl">
-            <div class="p-7 sm:p-9">
-
-                <div class="flex items-start justify-between gap-6">
-                    <div>
-                        <div class="text-[10px] uppercase tracking-[0.22em] text-charcoal/40">Private order</div>
-                        <h2 class="font-display text-4xl mt-2">Choose your Ilume.</h2>
-                    </div>
-
-                    <button onclick="closeOrder()" class="w-10 h-10 rounded-full border border-charcoal/15 text-lg">
-                        ×
-                    </button>
-                </div>
-
-                <form id="orderForm" class="mt-8 space-y-5">
-
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Journal</label>
-                        <select id="journal" name="journal" class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4" required>
-                            {% for journal in journals %}
-                            <option value="{{ journal.id }}">{{ journal.name }} — LKR {{ "{:,}".format(journal.price) }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Quantity</label>
-                            <input name="quantity" type="number" min="1" max="10" value="1" required
-                                   class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Full name</label>
-                            <input name="name" type="text" required placeholder="Your name"
-                                   class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Email</label>
-                        <input name="email" type="email" required placeholder="you@example.com"
-                               class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Phone</label>
-                        <input name="phone" type="tel" required placeholder="+94 7X XXX XXXX"
-                               class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4">
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Delivery address</label>
-                        <textarea name="address" rows="4" required placeholder="Street, city, postal code"
-                                  class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4 resize-none"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-[0.18em] text-charcoal/45 mb-2">Gift note <span class="normal-case tracking-normal">(optional)</span></label>
-                        <textarea name="note" rows="3" placeholder="Add a message..."
-                                  class="w-full rounded-2xl border border-charcoal/10 bg-porcelain px-4 py-4 resize-none"></textarea>
-                    </div>
-
-                    <button type="submit"
-                            class="w-full rounded-full bg-charcoal text-porcelain px-7 py-4 text-[11px] uppercase tracking-[0.18em]">
-                        Confirm Order
-                    </button>
-
-                    <p class="text-center text-[10px] leading-5 text-charcoal/40">
-                        Demo checkout. Connect the Flask order endpoint to your database and payment gateway for production.
-                    </p>
-                </form>
-
-                <div id="successState" class="hidden py-16 text-center">
-                    <div class="w-16 h-16 mx-auto rounded-full bg-[#E8DFD7] flex items-center justify-center text-2xl">
-                        ✓
-                    </div>
-                    <div class="font-display text-4xl mt-6">Beautiful choice.</div>
-                    <p class="mt-3 text-sm text-charcoal/55">Your Ilume order has been received.</p>
-                    <div id="orderReference" class="mt-5 text-[10px] uppercase tracking-[0.2em] text-charcoal/45"></div>
-
-                    <button onclick="closeOrder()"
-                            class="mt-8 rounded-full border border-charcoal/15 px-6 py-3 text-[11px] uppercase tracking-[0.18em]">
-                        Continue browsing
-                    </button>
-                </div>
-            </div>
-        </div>
+  </div>
+  <div class="panel status">
+    <div class="status-head"><div><div class="eyebrow">System condition</div><div class="status-name">Main Distribution Board</div></div><div id="status" class="pill">NORMAL</div></div>
+    <div class="quality">
+      <div class="mini"><span>Power Factor</span><strong id="pf">--</strong></div>
+      <div class="mini"><span>Frequency</span><strong><span id="freq">--</span> Hz</strong></div>
+      <div class="mini"><span>Avg. Voltage</span><strong><span id="avgV">--</span> V</strong></div>
+      <div class="mini"><span>Current Imbalance</span><strong><span id="imb">--</span> %</strong></div>
     </div>
+  </div>
+</section>
 
-    <script>
-        function openOrder(journalId) {
-            const overlay = document.getElementById('orderOverlay');
-            overlay.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
+<section class="metrics">
+  <div class="panel metric"><div class="label">L1 ACTIVE POWER</div><div class="value"><span id="l1kw">--</span><span class="unit">kW</span></div><div class="hint">Phase 1 demand</div></div>
+  <div class="panel metric"><div class="label">L2 ACTIVE POWER</div><div class="value"><span id="l2kw">--</span><span class="unit">kW</span></div><div class="hint">Phase 2 demand</div></div>
+  <div class="panel metric"><div class="label">L3 ACTIVE POWER</div><div class="value"><span id="l3kw">--</span><span class="unit">kW</span></div><div class="hint">Phase 3 demand</div></div>
+  <div class="panel metric"><div class="label">AVERAGE CURRENT</div><div class="value"><span id="avgI">--</span><span class="unit">A</span></div><div class="hint">Across three phases</div></div>
+</section>
 
-            if (journalId) {
-                document.getElementById('journal').value = journalId;
-            }
-        }
+<section class="main">
+  <div class="panel chart-panel">
+    <div class="title"><h2>Live Power Consumption</h2><span>Last 60 seconds</span></div>
+    <div class="chart-wrap"><canvas id="powerChart"></canvas></div>
+  </div>
+  <div class="panel phase-panel">
+    <div class="title"><h2>Three-Phase Measurements</h2><span>Live</span></div>
+    <div class="phase-list">
+      <div class="phase"><div class="phase-top"><div class="phase-name">● L1</div><b><span id="p1">--</span> kW</b></div><div class="phase-values"><div>Voltage <b><span id="v1">--</span> V</b></div><div>Current <b><span id="i1">--</span> A</b></div></div></div>
+      <div class="phase"><div class="phase-top"><div class="phase-name">● L2</div><b><span id="p2">--</span> kW</b></div><div class="phase-values"><div>Voltage <b><span id="v2">--</span> V</b></div><div>Current <b><span id="i2">--</span> A</b></div></div></div>
+      <div class="phase"><div class="phase-top"><div class="phase-name">● L3</div><b><span id="p3">--</span> kW</b></div><div class="phase-values"><div>Voltage <b><span id="v3">--</span> V</b></div><div>Current <b><span id="i3">--</span> A</b></div></div></div>
+    </div>
+  </div>
+</section>
+<footer><span>Data source: simulated smart-meter telemetry</span><span>API: /api/power • Polling: 1000 ms</span></footer>
+</div>
 
-        function closeOrder() {
-            document.getElementById('orderOverlay').classList.add('hidden');
-            document.body.style.overflow = '';
-            document.getElementById('orderForm').classList.remove('hidden');
-            document.getElementById('successState').classList.add('hidden');
-        }
-
-        document.getElementById('orderForm').addEventListener('submit', async function(event) {
-            event.preventDefault();
-
-            const button = event.target.querySelector('button[type="submit"]');
-            const original = button.textContent;
-            button.disabled = true;
-            button.textContent = 'Submitting...';
-
-            const payload = Object.fromEntries(new FormData(event.target).entries());
-
-            try {
-                const response = await fetch('/api/order', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.message || 'Unable to place order.');
-                }
-
-                document.getElementById('orderForm').classList.add('hidden');
-                document.getElementById('successState').classList.remove('hidden');
-                document.getElementById('orderReference').textContent =
-                    'Order reference · ' + data.order_id;
-
-                event.target.reset();
-
-            } catch (error) {
-                alert(error.message);
-            } finally {
-                button.disabled = false;
-                button.textContent = original;
-            }
-        });
-    </script>
-
+<script>
+const el=id=>document.getElementById(id);
+const ctx=el('powerChart').getContext('2d');
+const grad=ctx.createLinearGradient(0,0,0,310);grad.addColorStop(0,'rgba(85,216,255,.25)');grad.addColorStop(1,'rgba(85,216,255,.01)');
+const chart=new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:'#55d8ff',backgroundColor:grad,fill:true,pointRadius:0,borderWidth:2.2,tension:.35}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:7,color:'#526b88'}},y:{suggestedMin:30,suggestedMax:72,grid:{color:'rgba(255,255,255,.055)'},ticks:{color:'#526b88',callback:v=>v+' kW'}}}}});
+function txt(id,v){el(id).textContent=v}
+function apply(d){
+  txt('total',d.total_power_kw.toFixed(2));txt('energy',d.energy_kwh.toFixed(3));txt('peak',d.peak_power_kw.toFixed(2));txt('apparent',d.apparent_power_kva.toFixed(2));txt('reactive',d.reactive_power_kvar.toFixed(2));
+  txt('pf',d.power_factor.toFixed(3));txt('freq',d.frequency_hz.toFixed(2));txt('avgV',d.avg_voltage_v.toFixed(1));txt('avgI',d.avg_current_a.toFixed(1));txt('imb',d.current_imbalance_pct.toFixed(1));
+  const phases=['L1','L2','L3'];phases.forEach((p,n)=>{const x=d.phases[p];txt('l'+(n+1)+'kw',x.power_kw.toFixed(2));txt('p'+(n+1),x.power_kw.toFixed(2));txt('v'+(n+1),x.voltage_v.toFixed(1));txt('i'+(n+1),x.current_a.toFixed(1));});
+  const pill=el('status');pill.textContent=d.status;pill.className='pill'+(d.status_level==='normal'?'':' '+d.status_level);
+  const t=new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});txt('updated',t);chart.data.labels.push(t);chart.data.datasets[0].data.push(d.total_power_kw);if(chart.data.labels.length>60){chart.data.labels.shift();chart.data.datasets[0].data.shift()}chart.update('none');
+}
+let busy=false;async function refresh(){if(busy)return;busy=true;try{const r=await fetch('/api/power',{cache:'no-store'});if(!r.ok)throw new Error(r.status);apply(await r.json());el('error').style.display='none'}catch(e){console.error(e);el('error').style.display='block'}finally{busy=false}}
+refresh();setInterval(refresh,1000);
+</script>
 </body>
-</html>
-"""
+</html>'''
+
 
 @application.route("/")
-def home():
-    return render_template_string(
-        PAGE,
-        journals=JOURNALS,
-        year=datetime.now().year
-    )
+def index():
+    return render_template_string(DASHBOARD_HTML)
 
-@application.route("/api/order", methods=["POST"])
-def place_order():
-    data = request.get_json(silent=True) or {}
 
-    required = ["journal", "quantity", "name", "email", "phone", "address"]
-    missing = [field for field in required if not str(data.get(field, "")).strip()]
+@application.route("/api/power")
+def api_power():
+    response = jsonify(generate_dummy_power_data())
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
-    if missing:
-        return jsonify({
-            "success": False,
-            "message": "Please complete all required fields."
-        }), 400
-
-    selected = next((j for j in JOURNALS if j["id"] == data["journal"]), None)
-    if not selected:
-        return jsonify({
-            "success": False,
-            "message": "The selected journal is not available."
-        }), 400
-
-    try:
-        quantity = int(data["quantity"])
-        if quantity < 1 or quantity > 10:
-            raise ValueError
-    except (TypeError, ValueError):
-        return jsonify({
-            "success": False,
-            "message": "Quantity must be between 1 and 10."
-        }), 400
-
-    order_id = "ILM-" + uuid.uuid4().hex[:8].upper()
-    total = selected["price"] * quantity
-
-    # In production:
-    # 1. Save order to a database.
-    # 2. Trigger email/WhatsApp confirmation.
-    # 3. Redirect to a payment gateway if required.
-    print({
-        "order_id": order_id,
-        "journal": selected["name"],
-        "quantity": quantity,
-        "total_lkr": total,
-        "customer": data.get("name"),
-        "email": data.get("email"),
-        "phone": data.get("phone"),
-        "address": data.get("address"),
-        "note": data.get("note", "")
-    })
-
-    return jsonify({
-        "success": True,
-        "order_id": order_id,
-        "total_lkr": total,
-        "message": "Order received."
-    }), 201
 
 @application.route("/health")
 def health():
-    return jsonify({
-        "status": "ok",
-        "service": "ilume-edition-01",
-        "timestamp_utc": datetime.utcnow().isoformat() + "Z"
-    }), 200
+    return jsonify(
+        status="ok",
+        service="PowerPulse IoT Monitor",
+        timestamp=datetime.now().isoformat(timespec="seconds"),
+    )
+
 
 if __name__ == "__main__":
-    application.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    application.run(host="0.0.0.0", port=port, debug=True)
